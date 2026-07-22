@@ -17,14 +17,14 @@ jobs:
             os: macos-15
           }
         - {
-            name: "Ubuntu 22.04",
+            name: "Ubuntu 20.04 x64",
             os: ubuntu-latest,
-            container_image: "ubuntu:22.04"
+            container_image: "ubuntu:20.04"
           }
         - {
-            name: "Ubuntu 22.04 ARM64",
+            name: "Ubuntu 20.04 ARM64",
             os: ubuntu-24.04-arm,
-            container_image: "ubuntu:22.04"
+            container_image: "ubuntu:20.04"
           }
 
     runs-on: ${{ matrix.config.os }}
@@ -47,16 +47,19 @@ jobs:
           TZ: Etc/UTC
         run: |
           apt-get update
-          apt-get install -y build-essential git libssl-dev zlib1g-dev file zip curl jq cmake
-          # clang-16 is not in Ubuntu 22.04 (jammy), whose newest is clang-15.
-          # Add the official LLVM apt repo to install it.
+          apt-get install -y build-essential git libssl-dev zlib1g-dev file zip curl jq wget gnupg ca-certificates
           . /etc/os-release
-          apt-get install -y wget gnupg
+          # clang-16 is not in Ubuntu 20.04 (focal), whose newest is clang-12.
+          # Add the official LLVM apt repo to install it.
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /usr/share/keyrings/llvm.gpg
           echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/$VERSION_CODENAME/ llvm-toolchain-$VERSION_CODENAME-16 main" > /etc/apt/sources.list.d/llvm.list
+          # Ubuntu 20.04's cmake is 3.16, but the build needs >= 3.22.
+          # Add Kitware's official apt repo for an up-to-date cmake.
+          wget -qO- https://apt.kitware.com/keys/kitware-archive-latest.asc | gpg --dearmor -o /usr/share/keyrings/kitware.gpg
+          echo "deb [signed-by=/usr/share/keyrings/kitware.gpg] https://apt.kitware.com/ubuntu/ $VERSION_CODENAME main" > /etc/apt/sources.list.d/kitware.list
           apt-get update
-          apt-get install -y clang-16
-          # Ubuntu 22.04's bare "clang" is clang-14, which lacks __builtin_source_location
+          apt-get install -y clang-16 cmake
+          # Ubuntu 20.04's bare "clang" is clang-10, which lacks __builtin_source_location
           # and cannot compile Node 26's V8 headers (std::source_location). Force clang-16.
           update-alternatives --install /usr/bin/clang clang /usr/bin/clang-16 100
           update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-16 100
@@ -73,6 +76,8 @@ jobs:
           echo "--- compiler ---"
           clang --version
           clang++ --version
+          echo "--- cmake ---"
+          cmake --version
           echo "::endgroup::"
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -96,5 +101,5 @@ jobs:
           git status
           git config --global user.email "alexhultman@gmail.com"
           git config --global user.name "Alex Hultman"
-          git commit -a -m "[GitHub Actions] Updated ${{ matrix.config.os }} binaries" || true
+          git commit -a -m "[GitHub Actions] Updated ${{ matrix.config.name }} binaries" || true
           git push "https://andygruber:${{ secrets.SECRET }}@github.com/andygruber/uWebSockets.js" binaries
