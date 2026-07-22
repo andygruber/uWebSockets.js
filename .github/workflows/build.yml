@@ -58,7 +58,10 @@ jobs:
           wget -qO- https://apt.kitware.com/keys/kitware-archive-latest.asc | gpg --dearmor -o /usr/share/keyrings/kitware.gpg
           echo "deb [signed-by=/usr/share/keyrings/kitware.gpg] https://apt.kitware.com/ubuntu/ $VERSION_CODENAME main" > /etc/apt/sources.list.d/kitware.list
           apt-get update
-          apt-get install -y clang-16 cmake
+          # g++-10 provides a C++20-capable libstdc++. Ubuntu 20.04's default is GCC 9's
+          # libstdc++, which lacks the <compare> header (and other C++20 library headers)
+          # that Node 26's V8 headers need. clang auto-selects the newest GCC toolchain found.
+          apt-get install -y clang-16 cmake g++-10
           # Ubuntu 20.04's bare "clang" is clang-10, which lacks __builtin_source_location
           # and cannot compile Node 26's V8 headers (std::source_location). Force clang-16.
           update-alternatives --install /usr/bin/clang clang /usr/bin/clang-16 100
@@ -76,6 +79,8 @@ jobs:
           echo "--- compiler ---"
           clang --version
           clang++ --version
+          # Confirm which GCC toolchain (and thus libstdc++) clang selected.
+          clang++ -v -E -x c++ /dev/null 2>&1 | grep -i 'selected gcc' || true
           echo "--- cmake ---"
           cmake --version
           echo "::endgroup::"
